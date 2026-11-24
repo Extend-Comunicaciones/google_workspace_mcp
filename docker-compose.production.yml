@@ -25,6 +25,9 @@ services:
       - MCP_ENABLE_OAUTH21=true
       - WORKSPACE_MCP_OAUTH_PROXY_STORAGE_BACKEND=disk
       - WORKSPACE_MCP_OAUTH_PROXY_DISK_DIRECTORY=/app/store_creds
+      # DCR abierto por defecto: sin esto cualquiera registra un cliente con su propio redirect_uri.
+      # Solo el callback de LibreChat de este entorno.
+      - WORKSPACE_MCP_ALLOWED_CLIENT_REDIRECT_URIS=https://preludio.extend.cl/api/mcp/g-suite/oauth/callback
       # Endurecimiento
       - WORKSPACE_MCP_DISABLE_LOCAL_FILES=true
       # Hosts válidos (sin puerto): nombre del contenedor + dominio público
