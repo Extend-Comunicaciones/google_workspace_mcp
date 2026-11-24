@@ -8,6 +8,7 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from auth.google_auth import create_oauth_flow  # noqa: E402
+from auth.google_auth import load_client_secrets_from_env  # noqa: E402
 
 
 DUMMY_CLIENT_CONFIG = {
@@ -116,3 +117,60 @@ def test_create_oauth_flow_allows_disabling_autogenerate_without_verifier():
     _args, kwargs = mock_from_client_config.call_args
     assert kwargs["autogenerate_code_verifier"] is False
     assert "code_verifier" not in kwargs
+
+
+def test_load_client_secrets_from_env_supports_public_client():
+    with patch.dict(
+        os.environ,
+        {
+            "GOOGLE_OAUTH_CLIENT_ID": "public-client-id.apps.googleusercontent.com",
+            "GOOGLE_OAUTH_REDIRECT_URI": "http://localhost:8000/oauth2callback",
+        },
+        clear=True,
+    ):
+        config = load_client_secrets_from_env()
+
+    assert config is not None
+    assert "installed" in config
+    assert (
+        config["installed"]["client_id"]
+        == "public-client-id.apps.googleusercontent.com"
+    )
+    assert config["installed"]["client_secret"] == ""
+
+
+def test_create_oauth_flow_env_id_alone_does_not_load_file_secret():
+    """The legacy per-user flow is all-or-nothing, not per-value.
+
+    With only GOOGLE_OAUTH_CLIENT_ID set (no GOOGLE_OAUTH_CLIENT_SECRET), the
+    flow must be created from the environment as a public client — the client
+    secret in the client secrets file is NOT loaded.
+    """
+    expected_flow = object()
+    with (
+        patch.dict(
+            os.environ,
+            {"GOOGLE_OAUTH_CLIENT_ID": "env-only-id.apps.googleusercontent.com"},
+            clear=True,
+        ),
+        patch(
+            "auth.google_auth.CONFIG_CLIENT_SECRETS_PATH",
+            "/nonexistent/client_secret.json",
+        ),
+        patch(
+            "auth.google_auth.Flow.from_client_config",
+            return_value=expected_flow,
+        ) as mock_from_config,
+        patch("auth.google_auth.Flow.from_client_secrets_file") as mock_from_file,
+    ):
+        flow = create_oauth_flow(
+            scopes=["openid"],
+            redirect_uri="http://localhost/callback",
+            state="oauth-state-5",
+        )
+
+    assert flow is expected_flow
+    mock_from_file.assert_not_called()
+    args, _kwargs = mock_from_config.call_args
+    assert "installed" in args[0]
+    assert args[0]["installed"]["client_secret"] == ""
