@@ -9,6 +9,7 @@ Guía específica para el deploy del MCP en el entorno Extend. El `README.md` pr
 | Archivo | Propósito |
 |---|---|
 | `docker-compose.staging.yml` | Compose para staging |
+| `docker-compose.production.yml` | Compose para producción |
 | `docker-compose.yml` | Compose original del proyecto (referencia) |
 | `client_secret.json` | OAuth credentials de Google Cloud (**NO en git**) |
 | `.env.staging` | Variables de entorno para staging (**NO en git**) |
@@ -43,9 +44,8 @@ GOOGLE_OAUTH_REDIRECT_URI="https://mcp-preludio.extend.cl/oauth2callback"
 WORKSPACE_MCP_OAUTH_PROXY_STORAGE_BACKEND=disk
 WORKSPACE_MCP_OAUTH_PROXY_DISK_DIRECTORY=/app/store_creds
 
-# Debug (se puede desactivar en producción)
-OAUTH2_ENABLE_DEBUG=true
-OAUTH2_ENABLE_LEGACY_AUTH=true
+# OAuth 2.1 y tools (TOOLS/TOOL_TIER/MCP_ENABLE_OAUTH21 ya vienen en el compose)
+# NO usar OAUTH2_ENABLE_LEGACY_AUTH ni OAUTH2_ENABLE_DEBUG
 EOF
 ```
 
@@ -66,7 +66,6 @@ GOOGLE_OAUTH_REDIRECT_URI="https://mcp.preludio.extend.cl/oauth2callback"
 
 WORKSPACE_MCP_OAUTH_PROXY_STORAGE_BACKEND=disk
 WORKSPACE_MCP_OAUTH_PROXY_DISK_DIRECTORY=/app/store_creds
-OAUTH2_ENABLE_LEGACY_AUTH=true
 EOF
 ```
 
@@ -98,6 +97,17 @@ https://preludio.extend.cl
 
 ---
 
+## Tools expuestas y seguridad
+
+- `TOOLS=docs sheets slides` + `TOOL_TIER=core` (compose) → ~8 tools: `get_doc_content`, `create_doc`, `modify_doc_text`,
+  `create_spreadsheet`, `read_sheet_values`, `modify_sheet_values`, `create_presentation`, `get_presentation`.
+  Para más tools usar `TOOL_TIER=extended` (~23). Para solo lectura, agregar `--read-only`/`--permissions` (excluyentes con `--tools`).
+- `MCP_ENABLE_OAUTH21=true`: la identidad sale del bearer token. Con el modo legacy `user_google_email` lo elige quien llama → suplantable.
+- El nginx **no debe** publicar `/mcp` ni `/sse` sin autenticación; LibreChat usa `http://gws_mcp:8000/mcp` dentro de `extend-network`.
+- Verificación: desde fuera de la red, `curl -X POST https://<dominio>/mcp ...initialize` no debe responder 200 sin token.
+
+---
+
 ## Comandos de deploy
 
 ```bash
@@ -117,11 +127,20 @@ curl https://mcp-preludio.extend.cl/health
 
 ---
 
-## Actualizar (pull de cambios)
+## Actualizar (sincronizar con upstream)
+
+El fork es `Extend-Comunicaciones/google_workspace_mcp` (upstream: `taylorwilsdon/google_workspace_mcp`).
+Los cambios propios son solo `DEPLOY-EXTEND.md` y los `docker-compose.{staging,production}.yml`.
 
 ```bash
-cd ~/google_workspace_mcp
-git pull https://<TOKEN>@github.com/rjmarin/google_workspace_mcp.git main
+# En una copia local del fork
+git remote add upstream https://github.com/taylorwilsdon/google_workspace_mcp.git   # una vez
+git fetch upstream --tags
+git checkout -b sync/upstream-<tag> && git merge <tag>   # p.ej. v2.6.0
+# PR a main; revisar el changelog por breaking changes
+
+# En el servidor (autenticar con deploy key / gh auth, NUNCA con un token en la URL)
+cd ~/google_workspace_mcp && git pull origin main
 docker compose -f docker-compose.staging.yml up -d --build
 ```
 
@@ -137,7 +156,7 @@ mcpServers:
     type: streamable-http
     url: http://gws_mcp:8000/mcp    # nombre del contenedor en Docker
     startup: false
-    requiredOAuth: false
+    requiresOAuth: true   # OAuth 2.1 por usuario (ver librechat.prod.yaml)
 ```
 
 El flujo OAuth es:
@@ -172,6 +191,6 @@ El volumen `store_creds` debe estar declarado en `docker-compose.staging.yml`. S
 ## Para producción
 
 1. Crear `.env.production` con URLs `mcp.preludio.extend.cl`
-2. Actualizar `docker-compose.staging.yml` para usar `env_file: .env.production` (o crear `docker-compose.production.yml`)
+2. Usar `docker-compose.production.yml` (ya usa `.env.production` y `mcp.preludio.extend.cl`)
 3. Asegurarse de que Google Cloud Console tiene las redirect URIs de producción autorizadas
 4. El nginx de producción (`conf.d/mcp.preludio.extend.cl.conf`) debe apuntar a `gws_mcp:8000`
