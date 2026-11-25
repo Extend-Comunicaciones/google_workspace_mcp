@@ -1,24 +1,37 @@
 # =============================================================
 # google_workspace_mcp — STAGING
-# Cambios respecto al docker-compose.yml original:
+# Diferencias respecto a docker-compose.yml (upstream):
 #   1. El puerto 8000 NO se expone al host (solo red interna)
-#   2. Se agrega la red compartida "extend-network"
-#   3. Container name explícito para que nginx-proxy lo resuelva
-# Usar con: docker compose -f docker-compose.staging.yml up -d
+#   2. Red compartida "extend-network" (nginx-proxy + LibreChat)
+#   3. Solo Docs / Sheets / Slides, tier "core" (~8 tools en vez de ~111)
+#   4. OAuth 2.1: la identidad sale del token, no del parámetro user_google_email
+#   5. Sin lectura de archivos locales del contenedor
+# Usar con: docker compose -f docker-compose.staging.yml up -d --build
+# Secretos (GOOGLE_OAUTH_CLIENT_ID/SECRET) van en .env.staging, NUNCA en git.
 # =============================================================
 
 services:
   gws_mcp:
     build: .
     container_name: gws_mcp
-    # CAMBIO: Sin exposición de puerto al host
     expose:
       - "8000"
     environment:
       - GOOGLE_MCP_CREDENTIALS_DIR=/app/store_creds
-      # IMPORTANTE: El OAuth callback debe apuntar al dominio público
-      # Actualizar en Google Cloud Console:
-      # Authorized redirect URIs: https://mcp.preludio.extend.cl/oauth/callback
+      # Servicios y cantidad de tools (el Dockerfile los traduce a --tools / --tool-tier)
+      - TOOLS=docs sheets slides
+      - TOOL_TIER=core
+      # OAuth 2.1 (identidad por usuario a partir del bearer token)
+      - MCP_ENABLE_OAUTH21=true
+      - WORKSPACE_MCP_OAUTH_PROXY_STORAGE_BACKEND=disk
+      - WORKSPACE_MCP_OAUTH_PROXY_DISK_DIRECTORY=/app/store_creds
+      # DCR abierto por defecto: sin esto cualquiera registra un cliente con su propio redirect_uri.
+      # Solo el callback de LibreChat de este entorno.
+      - WORKSPACE_MCP_ALLOWED_CLIENT_REDIRECT_URIS=https://app-preludio.extend.cl/api/mcp/g-suite/oauth/callback
+      # Endurecimiento
+      - WORKSPACE_MCP_DISABLE_LOCAL_FILES=true
+      # Hosts válidos (sin puerto): nombre del contenedor + dominio público
+      - WORKSPACE_MCP_ALLOWED_HOSTS=gws_mcp,mcp-preludio.extend.cl
     volumes:
       - ./client_secret.json:/app/client_secret.json:ro
       - store_creds:/app/store_creds:rw
@@ -26,12 +39,11 @@ services:
       - .env.staging
     networks:
       - extend-network
-    restart: always
+    restart: unless-stopped
 
 volumes:
   store_creds:
 
 networks:
-  # NUEVO: Red compartida con nginx-proxy y LibreChat
   extend-network:
     external: true

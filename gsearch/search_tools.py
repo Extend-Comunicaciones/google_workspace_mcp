@@ -7,16 +7,26 @@ This module provides MCP tools for interacting with Google Programmable Search E
 import logging
 import asyncio
 import os
-from typing import Optional, List, Literal
+from typing import Optional, Literal
+
+from mcp.types import ToolAnnotations
 
 from auth.service_decorator import require_google_service
 from core.server import server
-from core.utils import handle_http_errors
+from core.utils import handle_http_errors, StringList
 
 logger = logging.getLogger(__name__)
 
 
-@server.tool()
+@server.tool(
+    title="Search Custom",
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
 @handle_http_errors("search_custom", is_read_only=True, service_type="customsearch")
 @require_google_service("customsearch", "customsearch")
 async def search_custom(
@@ -33,7 +43,7 @@ async def search_custom(
     file_type: Optional[str] = None,
     language: Optional[str] = None,
     country: Optional[str] = None,
-    sites: Optional[List[str]] = None,
+    sites: Optional[StringList] = None,
 ) -> str:
     """
     Performs a search using Google Custom Search JSON API.
@@ -70,14 +80,15 @@ async def search_custom(
         )
 
     logger.info(
-        f"[search_custom] Invoked. Email: '{user_google_email}', Query: '{q}', CX: '{cx}'"
+        f"[search_custom] Invoked. Email: '{user_google_email}', query_len={len(q)}, CX: '{cx}'"
     )
+    logger.debug(f"[search_custom] Query: '{q}'")
 
     # Apply site restriction if sites are provided
     if sites:
         site_query = " OR ".join([f"site:{site}" for site in sites])
         q = f"{q} ({site_query})"
-        logger.info(f"[search_custom] Applied site restriction: {sites}")
+        logger.debug(f"[search_custom] Applied site restriction: {sites}")
 
     # Build the request parameters
     params = {
@@ -163,7 +174,15 @@ async def search_custom(
     return confirmation_message
 
 
-@server.tool()
+@server.tool(
+    title="Get Search Engine Info",
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
 @handle_http_errors(
     "get_search_engine_info", is_read_only=True, service_type="customsearch"
 )
