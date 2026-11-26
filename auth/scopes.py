@@ -207,7 +207,9 @@ SCRIPT_SCOPES = [
 # Tool-to-scopes mapping
 TOOL_SCOPES_MAP = {
     "gmail": GMAIL_SCOPES,
-    "drive": DRIVE_SCOPES,
+    # Extend: sin el scope "drive" completo. Las tools habilitadas (buscar, copiar plantilla, enlace)
+    # solo requieren drive.readonly y drive.file; no pedir acceso total al Drive del usuario.
+    "drive": [DRIVE_READONLY_SCOPE, DRIVE_FILE_SCOPE],
     "calendar": CALENDAR_SCOPES,
     "docs": DOCS_SCOPES,
     "sheets": SHEETS_SCOPES,
