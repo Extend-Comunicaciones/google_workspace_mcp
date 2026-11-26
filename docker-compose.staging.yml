@@ -3,7 +3,7 @@
 # Diferencias respecto a docker-compose.yml (upstream):
 #   1. El puerto 8000 NO se expone al host (solo red interna)
 #   2. Red compartida "extend-network" (nginx-proxy + LibreChat)
-#   3. Solo Docs / Sheets / Slides, tier "core" (~8 tools en vez de ~111)
+#   3. 12 tools: Docs/Sheets/Slides + buscar/copiar en Drive (antes ~111)
 #   4. OAuth 2.1: la identidad sale del token, no del parámetro user_google_email
 #   5. Sin lectura de archivos locales del contenedor
 # Usar con: docker compose -f docker-compose.staging.yml up -d --build
@@ -19,8 +19,11 @@ services:
     environment:
       - GOOGLE_MCP_CREDENTIALS_DIR=/app/store_creds
       # Servicios y cantidad de tools (el Dockerfile los traduce a --tools / --tool-tier)
-      - TOOLS=docs sheets slides
-      - TOOL_TIER=core
+      # 12 tools: docs/sheets (core) + slides con batch_update + drive solo buscar/copiar plantilla/enlace.
+      # El tier es global (extended), por eso las demas se deshabilitan por nombre.
+      - TOOLS=docs sheets slides drive
+      - TOOL_TIER=extended
+      - WORKSPACE_MCP_DISABLED_TOOLS=export_doc_to_pdf,search_docs,find_and_replace_doc,list_docs_in_folder,insert_doc_elements,update_paragraph_style,get_doc_as_markdown,list_document_comments,manage_document_comment,list_spreadsheets,get_spreadsheet_info,format_sheet_range,list_sheet_tables,render_page_to_image,get_drive_file_content,get_drive_file_download_url,create_drive_file,create_drive_folder,import_to_google_doc,import_to_google_slides,import_to_google_sheets,list_drive_items,update_drive_file,manage_drive_access,set_drive_file_permissions
       # OAuth 2.1 (identidad por usuario a partir del bearer token)
       - MCP_ENABLE_OAUTH21=true
       - WORKSPACE_MCP_OAUTH_PROXY_STORAGE_BACKEND=disk

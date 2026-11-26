@@ -99,9 +99,12 @@ https://preludio.extend.cl
 
 ## Tools expuestas y seguridad
 
-- `TOOLS=docs sheets slides` + `TOOL_TIER=core` (compose) → ~8 tools: `get_doc_content`, `create_doc`, `modify_doc_text`,
-  `create_spreadsheet`, `read_sheet_values`, `modify_sheet_values`, `create_presentation`, `get_presentation`.
-  Para más tools usar `TOOL_TIER=extended` (~23). Para solo lectura, agregar `--read-only`/`--permissions` (excluyentes con `--tools`).
+- Tools habilitadas (12): `get_doc_content`, `create_doc`, `modify_doc_text`, `create_spreadsheet`, `read_sheet_values`,
+  `modify_sheet_values`, `create_presentation`, `get_presentation`, `batch_update_presentation`, `search_drive_files`,
+  `copy_drive_file`, `get_drive_shareable_link`. Se logra con `TOOLS=docs sheets slides drive`, `TOOL_TIER=extended`
+  y `WORKSPACE_MCP_DISABLED_TOOLS` (el tier es global, así que lo demás se apaga por nombre; ver el compose).
+  Drive solo se habilita para encontrar y **copiar plantillas de Slides** (skill `crear-presentacion-desde-plantilla`);
+  no hay tools de compartir, borrar ni descargar. Para solo lectura, `--read-only`/`--permissions` (excluyentes con `--tools`).
 - `MCP_ENABLE_OAUTH21=true`: la identidad sale del bearer token. Con el modo legacy `user_google_email` lo elige quien llama → suplantable.
 - El nginx **no debe** publicar `/mcp` ni `/sse` sin autenticación; LibreChat usa `http://gws_mcp:8000/mcp` dentro de `extend-network`.
 - Verificación: desde fuera de la red, `curl -X POST https://<dominio>/mcp ...initialize` no debe responder 200 sin token.
